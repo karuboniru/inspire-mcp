@@ -52,6 +52,7 @@ jobs:
           podman run --detach --name inspire-smoke \
             --publish 127.0.0.1:8000:8000 localhost/inspire-mcp:ci
           python3 - <<'PY'
+          import http.client
           import json
           import time
           import urllib.error
@@ -96,7 +97,8 @@ jobs:
               try:
                   result = rpc(initialize)
                   break
-              except (urllib.error.URLError, TimeoutError):
+              except (urllib.error.URLError, TimeoutError, ConnectionError,
+                      http.client.RemoteDisconnected):
                   if attempt == 59:
                       raise
                   time.sleep(1)
