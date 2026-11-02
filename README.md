@@ -62,6 +62,47 @@ Example MCP host configuration:
 }
 ```
 
+## Container deployment
+
+Build a minimal runtime image with Podman (Python dependencies are installed by
+`uv sync --locked --no-dev --no-editable`):
+
+```bash
+podman build -t localhost/inspire-mcp:local .
+podman run -d --name inspire-mcp --restart unless-stopped \
+  -p 127.0.0.1:8000:8000 localhost/inspire-mcp:local
+```
+
+Docker can run the same image. The container defaults to a single process serving
+Streamable HTTP on `0.0.0.0:8000/mcp`, as UID/GID 10001. The runtime contains no uv,
+source checkout, development dependencies, or build cache. No persistent volume is
+required. Pass application configuration using `-e INSPIRE_...=...` as listed below.
+
+Connect your external authentication/TLS reverse proxy to port 8000 and configure
+clients with `https://<your-domain>/mcp`. The image does not implement authentication.
+The loopback port mapping above is suitable for a proxy on the same host; for a
+containerized proxy, put both containers on a private network and proxy to
+`http://inspire-mcp:8000/mcp` without publishing the backend port. Preserve streaming
+responses (disable proxy buffering) and allow sufficient upstream response time.
+Configure allowed public hosts/origins at your proxy, and keep the backend private.
+
+Keep one replica for personal/small-team use: caches and upstream rate limits are
+local to each process. Container arguments replace the default command; when
+overriding them, include all required HTTP flags:
+
+```bash
+podman run --rm -p 127.0.0.1:8001:8001 localhost/inspire-mcp:local \
+  --transport streamable-http --host 0.0.0.0 --port 8001 --allow-public-http
+```
+
+The container workflow builds and smoke-tests Linux amd64 and arm64 images on native
+GitHub runners. Pull requests build only; pushes to `main`, release tags `v*`, and
+manual runs publish to `ghcr.io/<owner>/<repository>`. `latest` follows `main`;
+`sha-<full-commit-sha>` identifies a commit. Release tags are also published.
+After the workflow has published an image, deploy it by replacing
+`localhost/inspire-mcp:local` above with your GHCR image reference. Private GHCR
+packages require `podman login ghcr.io` before pulling.
+
 ## Tools
 
 | Tool | Purpose |
