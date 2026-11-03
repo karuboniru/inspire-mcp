@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Literal, cast
+from urllib.parse import urlsplit
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -31,6 +32,36 @@ class Settings:
     cache_max_entries: int = 256
     download_hosts: tuple[str, ...] = ("inspirehep.net", "s3.cern.ch")
     log_level: LogLevel = "INFO"
+    oidc_issuer: str | None = None
+    public_url: str | None = None
+
+    def __post_init__(self) -> None:
+        # Presence (including an empty value) opts into authentication. Incomplete
+        # or invalid configuration must stop startup, never disable authentication.
+        if (self.oidc_issuer is None) != (self.public_url is None):
+            raise ValueError(
+                "Authentication requested: Set both INSPIRE_MCP_OIDC_ISSUER and "
+                "INSPIRE_MCP_PUBLIC_URL; refusing to start without authentication."
+            )
+        for name, value in (
+            ("INSPIRE_MCP_OIDC_ISSUER", self.oidc_issuer),
+            ("INSPIRE_MCP_PUBLIC_URL", self.public_url),
+        ):
+            if value is None:
+                continue
+            parsed = urlsplit(value)
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+                or any(char.isspace() for char in value)
+            ):
+                raise ValueError(f"{name} must be an HTTPS URL without credentials/query/fragment.")
+            # Accessing port also validates a malformed or out-of-range port.
+            _ = parsed.port
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -67,4 +98,6 @@ class Settings:
             cache_max_entries=_env_int("INSPIRE_CACHE_MAX_ENTRIES", defaults.cache_max_entries),
             download_hosts=download_hosts,
             log_level=cast(LogLevel, log_level),
+            oidc_issuer=os.getenv("INSPIRE_MCP_OIDC_ISSUER"),
+            public_url=os.getenv("INSPIRE_MCP_PUBLIC_URL"),
         )

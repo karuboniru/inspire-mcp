@@ -12,6 +12,7 @@ dependencies = [
     "httpx2>=2.5,<3",
     "mcp>=2.0,<3",
     "pydantic>=2.12,<3",
+    "PyJWT[crypto]>=2.13,<3",
 ]
 
 [project.scripts]

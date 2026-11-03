@@ -5,8 +5,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from mcp.server import MCPServer
+from mcp.server.auth.settings import AuthSettings
 
 from inspire_mcp import __version__
+from inspire_mcp.auth import OIDCTokenVerifier
 from inspire_mcp.client import InspireClient
 from inspire_mcp.config import Settings
 from inspire_mcp.runtime import AppContext
@@ -34,6 +36,18 @@ mcp = MCPServer(
     ),
     lifespan=app_lifespan,
     log_level=settings.log_level,
+    auth=(
+        AuthSettings.model_validate(
+            {"issuer_url": settings.oidc_issuer, "resource_server_url": settings.public_url}
+        )
+        if settings.oidc_issuer is not None
+        else None
+    ),
+    token_verifier=(
+        OIDCTokenVerifier(settings.oidc_issuer, settings.public_url)
+        if settings.oidc_issuer is not None and settings.public_url is not None
+        else None
+    ),
 )
 
 register_literature_tools(mcp)

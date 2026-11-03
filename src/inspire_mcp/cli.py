@@ -6,6 +6,7 @@ import os
 from collections.abc import Sequence
 
 from inspire_mcp import __version__
+from inspire_mcp.config import Settings
 
 
 def _is_loopback(host: str) -> bool:
@@ -45,13 +46,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        parser.error(str(exc))
     if (
         args.transport == "streamable-http"
         and not _is_loopback(args.host)
         and not args.allow_public_http
+        and settings.oidc_issuer is None
     ):
         parser.error(
-            "Refusing a public HTTP bind without --allow-public-http. "
+            "Refusing a public HTTP bind without OIDC authentication or --allow-public-http. "
             "Deploy behind authentication and TLS."
         )
     os.environ["INSPIRE_MCP_LOG_LEVEL"] = args.log_level

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -318,6 +318,7 @@ dependencies = [
     { name = "httpx2" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 
 [package.dev-dependencies]
@@ -332,6 +333,7 @@ requires-dist = [
     { name = "httpx2", specifier = ">=2.5,<3" },
     { name = "mcp", specifier = ">=2.0,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13,<3" },
 ]
 
 [package.metadata.requires-dev]

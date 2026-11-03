@@ -47,8 +47,43 @@ inspire-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
 The endpoint is `http://127.0.0.1:8000/mcp` by default. Binding to a non-loopback
-address requires `--allow-public-http`; production deployments should add authentication
-and TLS in front of the server.
+address requires OIDC authentication (below) or `--allow-public-http`. Production
+deployments should terminate TLS at a reverse proxy.
+
+### OIDC authentication for HTTP
+
+To use an existing authorization server that supports CIMD and issues signed JWT
+access tokens, set both variables:
+
+```bash
+export INSPIRE_MCP_OIDC_ISSUER=https://auth.example.com/realms/example
+export INSPIRE_MCP_PUBLIC_URL=https://inspire.example.com/mcp
+inspire-mcp --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+Use the exact issuer URL (including any path or trailing slash), and the externally
+visible MCP endpoint URL. Both must use HTTPS. Configure the identity provider to
+issue access tokens with `aud` containing `INSPIRE_MCP_PUBLIC_URL`. Its access
+tokens must include `iss`, `aud`, `exp`, and `sub`, and use RS256/384/512 or
+ES256/384/512 signatures. Opaque tokens and encrypted JWTs are not supported.
+
+The server discovers the issuer's public signing keys using OIDC discovery and
+JWKS, caches them, and verifies tokens. **No JWT secret or private key is needed**:
+the identity provider signs tokens; this server only verifies them. Discovery and
+JWKS endpoints must be reachable from the server.
+
+Unauthenticated HTTP requests receive a 401 with an OAuth resource metadata URL.
+Proxy `/.well-known/oauth-protected-resource` and its subpaths to this service as
+well as `/mcp`, preserving the `Authorization` and `WWW-Authenticate` headers.
+Clients discover the external authorization server and authenticate there. Enable
+CIMD and the appropriate client/resource access policies at that provider; this
+server does not implement client registration or an authorization server itself.
+Any valid access token for this resource grants access to all tools; there is no
+additional per-user or per-scope policy in this minimal integration.
+
+Only leaving both variables unset permits unauthenticated HTTP behavior. The presence
+of either variable requires authentication: missing or empty values stop startup,
+even with `--allow-public-http`. Stdio does not require tokens or contact the issuer.
 
 Example MCP host configuration:
 
@@ -78,8 +113,9 @@ Streamable HTTP on `0.0.0.0:8000/mcp`, as UID/GID 10001. The runtime contains no
 source checkout, development dependencies, or build cache. No persistent volume is
 required. Pass application configuration using `-e INSPIRE_...=...` as listed below.
 
-Connect your external authentication/TLS reverse proxy to port 8000 and configure
-clients with `https://<your-domain>/mcp`. The image does not implement authentication.
+Connect your TLS reverse proxy to port 8000 and configure clients with
+`https://<your-domain>/mcp`. Enable the OIDC configuration above or use authentication
+at the proxy.
 The loopback port mapping above is suitable for a proxy on the same host; for a
 containerized proxy, put both containers on a private network and proxy to
 `http://inspire-mcp:8000/mcp` without publishing the backend port. Preserve streaming
@@ -147,6 +183,8 @@ Author searches never expose email addresses. A single author record requires bo
 | `INSPIRE_CACHE_MAX_ENTRIES` | `256` |
 | `INSPIRE_DOWNLOAD_HOSTS` | `inspirehep.net,s3.cern.ch` |
 | `INSPIRE_MCP_LOG_LEVEL` | `INFO` |
+| `INSPIRE_MCP_OIDC_ISSUER` | Unset (authentication disabled) |
+| `INSPIRE_MCP_PUBLIC_URL` | Unset (required with OIDC issuer; also the token audience) |
 
 INSPIRE documents an upstream limit of 15 requests per 5 seconds per IP. This server
 uses a lower default to preserve headroom and retries HTTP 429 responses conservatively.
